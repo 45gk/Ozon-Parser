@@ -317,6 +317,18 @@ uv run python -m unittest discover -s tests -v
 
 Тесты офлайн: не ходят в Ozon и не требуют Chrome.
 
+## Скилл документации
+
+В проекте лежит переиспользуемый скилл
+[`task-documentation`](.dsh/skills/task-documentation/SKILL.md). Он создаёт
+`docs/<TASK-ID>/{STATUS.md,REASONING.md,assets/}` по шаблонам и требует
+evidence-first подход: команды, тесты, живые значения, ограничения.
+
+```bash
+python3 .dsh/skills/task-documentation/scripts/scaffold_task_docs.py \
+  --root docs --task-id EPARSE-5 --title "Название задачи"
+```
+
 ## Документация
 
 - [EPARSE-1: статус парсера](docs/EPARSE-1/STATUS.md)
@@ -325,6 +337,8 @@ uv run python -m unittest discover -s tests -v
 - [EPARSE-2: журнал решений](docs/EPARSE-2/REASONING.md)
 - [EPARSE-3: статус поиска по выдаче](docs/EPARSE-3/STATUS.md)
 - [EPARSE-3: журнал решений](docs/EPARSE-3/REASONING.md)
+- [EPARSE-4: статус скилла документации](docs/EPARSE-4/STATUS.md)
+- [EPARSE-4: журнал решений по скиллу](docs/EPARSE-4/REASONING.md)
 
 ## Ограничения
 
