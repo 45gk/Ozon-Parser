@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -67,14 +68,45 @@ def format_money(value, currency: str | None) -> str:
     return f"{value} {symbol}".strip()
 
 
+def _pretty_number(value) -> str:
+    if value in (None, ""):
+        return "—"
+    text = format(value, "f") if isinstance(value, Decimal) else str(value)
+    try:
+        number = Decimal(text)
+    except (InvalidOperation, ValueError):
+        return text
+    if number == number.to_integral_value():
+        return f"{int(number):,}".replace(",", " ")
+    return f"{number:,.2f}".replace(",", " ").replace(".", ",")
+
+
+def format_money_pretty(value, currency: str | None) -> str:
+    if value in (None, ""):
+        return "—"
+    symbol = CURRENCY_SYMBOLS.get(currency or "", currency or "")
+    return f"{_pretty_number(value)} {symbol}".strip()
+
+
 def format_rating(value) -> str:
     return f"{value} ★" if value not in (None, "") else "—"
+
+
+def format_rating_pretty(value) -> str:
+    if value in (None, ""):
+        return "—"
+    text = format(value, "f") if isinstance(value, Decimal) else str(value)
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return f"{text} ★"
 
 
 templates.env.filters["dt"] = format_datetime
 templates.env.filters["duration"] = format_duration
 templates.env.filters["money"] = format_money
+templates.env.filters["money_pretty"] = format_money_pretty
 templates.env.filters["rating"] = format_rating
+templates.env.filters["rating_pretty"] = format_rating_pretty
 templates.env.globals["status_labels"] = STATUS_LABELS
 templates.env.globals["source_labels"] = SOURCE_LABELS
 templates.env.globals["currency_symbols"] = CURRENCY_SYMBOLS

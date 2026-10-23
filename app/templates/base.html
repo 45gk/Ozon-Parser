@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="dark">
   <title>{% block title %}Ozon Parse Lab{% endblock %}</title>
   <link rel="stylesheet" href="/static/style.css">
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
   <div class="page-glow" aria-hidden="true"></div>
@@ -21,6 +22,7 @@
       </a>
       <nav class="main-nav" aria-label="Основная навигация">
         <a href="/" class="nav-link">История</a>
+        <a href="/searches" class="nav-link">Поиск</a>
         <a href="/#new-run" class="nav-link nav-link-accent">Новый парсинг</a>
       </nav>
     </div>

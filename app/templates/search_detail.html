@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{{ run.query or "Поиск" }} — Ozon Parse Lab{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/search.css">
+{% endblock %}
+
+{% block content %}
+<a class="back-link" href="/searches">← Назад к поискам</a>
+
+<section class="detail-head">
+  <div class="detail-title">
+    <p class="eyebrow">Результат поиска</p>
+    <h1>{{ run.query or run.title or "Выдача Ozon" }}</h1>
+    <a class="product-url" href="{{ run.search_url }}" target="_blank" rel="noreferrer">{{ run.search_url }}</a>
+  </div>
+  <div class="detail-actions">
+    <span class="badge status-{{ run.status }}">{{ status_labels.get(run.status, run.status) }}</span>
+    <button
+      class="btn secondary"
+      type="button"
+      data-search-rerun-url="{{ run.search_url }}"
+      data-search-rerun-source="{{ run.source }}"
+      data-search-rerun-cdp-url="{{ options.get('cdp_url', '') }}"
+      data-search-rerun-limit="{{ options.get('limit', 20) }}"
+      data-search-rerun-headless="{{ 'true' if options.get('headless') else 'false' }}"
+    >Повторить</button>
+  </div>
+</section>
+
+<section class="meta-strip">
+  <span><b>Источник</b> {{ source_labels.get(run.source, run.source) }}</span>
+  <span><b>Создан</b> {{ run.created_at|dt }}</span>
+  <span><b>Время</b> {{ run.duration_ms|duration }}</span>
+  <span><b>Товаров</b> {{ run.items_count }}</span>
+  <span><b>Лимит</b> {{ options.get('limit', '—') }}</span>
+</section>
+
+{% if run.status in ['queued', 'running'] %}
+<section class="panel progress-panel">
+  <div class="spinner" aria-hidden="true"></div>
+  <div>
+    <h2>Собираем выдачу…</h2>
+    <p class="panel-subtitle">
+      Загружаем страницу поиска, достаём ссылки и карточки товаров.
+      Если Ozon покажет проверку — пройди её в открытом окне Chrome.
+    </p>
+  </div>
+</section>
+{% endif %}
+
+{% if run.status == 'failed' %}
+<section class="panel error-panel">
+  <p class="eyebrow">Ошибка</p>
+  <h2>Не удалось собрать выдачу</h2>
+  <pre class="error-box">{{ run.error or "Неизвестная ошибка" }}</pre>
+  <div class="panel-actions">
+    <a class="btn secondary" href="/searches">В историю</a>
+    <button
+      class="btn primary"
+      type="button"
+      data-search-rerun-url="{{ run.search_url }}"
+      data-search-rerun-source="{{ run.source }}"
+      data-search-rerun-cdp-url="{{ options.get('cdp_url', '') }}"
+      data-search-rerun-limit="{{ options.get('limit', 20) }}"
+    >Попробовать снова</button>
+  </div>
+</section>
+{% endif %}
+
+{% if run.status == 'success' %}
+  {% if items %}
+  <section class="panel search-results-panel">
+    <div class="panel-heading compact">
+      <div>
+        <p class="eyebrow">Топ выдачи</p>
+        <h2>Первые {{ items|length }} товаров</h2>
+      </div>
+      <span class="panel-mark">order by Ozon</span>
+    </div>
+
+    <div class="search-results">
+      {% for item in items %}
+      <article class="search-result">
+        <span class="search-rank">{{ item.position }}</span>
+        {% if item.image_url %}
+        <img class="search-thumb" src="{{ item.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        {% else %}
+        <span class="search-thumb search-thumb-placeholder">O</span>
+        {% endif %}
+        <div class="search-result-info">
+          <a class="search-result-name" href="{{ item.product_url }}" target="_blank" rel="noreferrer">{{ item.name or "Товар без названия" }}</a>
+          <div class="search-result-meta">
+            <span class="search-price">{{ item.price|money_pretty(item.currency) }}</span>
+            {% if item.original_price %}<s class="search-old-price">{{ item.original_price|money_pretty(item.currency) }}</s>{% endif %}
+            {% if item.discount %}<span class="search-discount">{{ item.discount }}</span>{% endif %}
+            {% if item.rating %}<span class="search-rating">{{ item.rating|rating_pretty }}</span>{% endif %}
+            {% if item.review_count %}<span class="muted">{{ item.review_count }} отзывов</span>{% endif %}
+          </div>
+          <small>SKU {{ item.sku or '—' }}</small>
+        </div>
+        <a class="btn ghost small search-open" href="{{ item.product_url }}" target="_blank" rel="noreferrer">Ozon ↗</a>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <section class="panel">
+    <div class="empty-state">
+      <strong>В выдаче нет товаров</strong>
+      <span>Попробуй другой запрос или другую категорию.</span>
+    </div>
+  </section>
+  {% endif %}
+{% endif %}
+
+{% if options %}
+<section class="panel options-panel">
+  <details>
+    <summary>Параметры запуска</summary>
+    <pre class="options-json">{{ options|tojson(indent=2) }}</pre>
+  </details>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if run.status in ['queued', 'running'] %}
+<script>window.__SEARCH_RUN_ID__ = "{{ run.id }}";</script>
+{% endif %}
+<script src="/static/search.js" defer></script>
+{% endblock %}

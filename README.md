@@ -64,7 +64,8 @@ FastAPI + Jinja2 + PostgreSQL. Умеет:
 - показывать статус `queued/running/success/failed` с автообновлением;
 - хранить историю, фильтровать по статусу/источнику и искать по URL, названию, SKU, продавцу;
 - показывать карточку, характеристики, галерею и полный JSON;
-- повторять запуск одной кнопкой.
+- повторять запуск одной кнопкой;
+- собирать топ товаров из поисковой выдачи Ozon (ссылки, цены, рейтинги).
 
 ![Дашборд Ozon Parse Lab](docs/EPARSE-2/assets/dashboard.png)
 
@@ -79,6 +80,12 @@ uv run uvicorn app.main:app --reload --port 8000
 ```
 
 Открой `http://127.0.0.1:8000`.
+
+Если порт 8000 занят (например, другим локальным приложением), запусти на 8001:
+
+```bash
+uv run uvicorn app.main:app --reload --port 8001
+```
 
 По умолчанию используется база:
 
@@ -129,6 +136,10 @@ docker compose up --build
 | `GET` | `/api/runs/{id}` | Статус и результат |
 | `GET` | `/api/stats` | Общая статистика |
 | `GET` | `/health` | Проверка приложения и БД |
+| `POST` | `/api/searches` | Создать сбор топа выдачи, вернуть `202` и `id` |
+| `GET` | `/api/searches` | История поисков с фильтрами |
+| `GET` | `/api/searches/{id}` | Статус и товары выдачи |
+| `GET` | `/api/searches/stats` | Статистика поисков |
 | `GET` | `/docs` | Swagger UI |
 
 Пример:
@@ -143,6 +154,32 @@ curl -X POST http://127.0.0.1:8000/api/runs \
     "challenge_timeout": 120
   }'
 ```
+
+## Поиск по выдаче
+
+Отдельный режим: вставь ссылку на `/category/...` или `/search/...` — парсер заберёт
+первые N товаров из выдачи Ozon, сохранит ссылки, цены, скидки и рейтинги.
+
+![Поиск по выдаче](docs/EPARSE-3/assets/search-dashboard.png)
+
+- до 100 товаров за запуск (по умолчанию 20);
+- учитывается порядок выдачи Ozon, дубликаты по SKU убираются;
+- поддерживается пагинация выдачи через `infiniteVirtualPaginator.nextPage`;
+- результаты лежат в `search_runs` и `search_items`, не пересекаясь с `parse_runs`.
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/searches \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://www.ozon.ru/category/noutbuki-15692/apple-26303000/?text=macbook+air+m5",
+    "source": "cdp",
+    "limit": 20,
+    "timeout": 45,
+    "challenge_timeout": 120
+  }'
+```
+
+Страница интерфейса: `http://127.0.0.1:8000/searches`.
 
 ## Живой запрос через браузер (CDP)
 
@@ -193,11 +230,11 @@ uv run ozon-parse --source browser --user-data-dir ~/.ozon-playwright 'https://w
 
 1. Откройте карточку в браузере, DevTools → Network.
 2. Найдите запрос `entrypoint-api.bx/page/json/v2`.
-3. Скопируйте или сохраните его Response в файл (например, `json_responce.json`).
+3. Скопируйте или сохраните его Response в файл (например, `response.json`).
 4. Запустите:
 
 ```bash
-uv run ozon-parse --json json_responce.json 'https://www.ozon.ru/product/.../'
+uv run ozon-parse --json response.json 'https://www.ozon.ru/product/.../'
 ```
 
 Ссылка не обязательна, но по ней заполняется `source_url`. Можно читать из stdin:
@@ -256,11 +293,11 @@ print(product.to_dict())
 
 | Компонент | Файлы |
 |---|---|
-| Парсер и модели | `ozon_parser/` |
+| Парсер и модели | `ozon_parser/`, в т.ч. `ozon_parser/search.py` |
 | FastAPI-приложение | `app/main.py`, `app/api/` |
 | База данных | `app/db/` |
-| Репозиторий истории | `app/repositories/runs.py` |
-| Фоновый запуск парсинга | `app/services/runner.py` |
+| Репозиторий истории | `app/repositories/runs.py`, `app/repositories/searches.py` |
+| Фоновый запуск парсинга | `app/services/runner.py`, `app/services/search_runner.py` |
 | Шаблоны и статика | `app/templates/`, `app/static/` |
 | Docker | `Dockerfile`, `compose.yaml` |
 
@@ -275,7 +312,8 @@ uv run python -m unittest discover -s tests -v
 ```
 
 - `tests/test_parser.py` — парсер, CLI, фикстура.
-- `tests/test_web_app.py` — API, история, фильтры, шаблоны, фоновый runner (SQLite + мок парсера).
+- `tests/test_search_parser.py` — разбор поисковой выдачи и URL API.
+- `tests/test_web_app.py` — API, история, фильтры, шаблоны, фоновые runner'ы (SQLite + мок парсера).
 
 Тесты офлайн: не ходят в Ozon и не требуют Chrome.
 
@@ -285,6 +323,8 @@ uv run python -m unittest discover -s tests -v
 - [EPARSE-1: журнал решений](docs/EPARSE-1/REASONING.md)
 - [EPARSE-2: статус веб-приложения](docs/EPARSE-2/STATUS.md)
 - [EPARSE-2: журнал решений](docs/EPARSE-2/REASONING.md)
+- [EPARSE-3: статус поиска по выдаче](docs/EPARSE-3/STATUS.md)
+- [EPARSE-3: журнал решений](docs/EPARSE-3/REASONING.md)
 
 ## Ограничения
 

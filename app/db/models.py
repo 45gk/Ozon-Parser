@@ -4,9 +4,20 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -50,3 +61,65 @@ class ParseRun(Base):
     in_stock: Mapped[bool | None] = mapped_column(Boolean)
     seller: Mapped[str | None] = mapped_column(String(255))
     image_url: Mapped[str | None] = mapped_column(Text)
+
+
+class SearchRun(Base):
+    __tablename__ = "search_runs"
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    search_url: Mapped[str] = mapped_column(Text, nullable=False)
+    query: Mapped[str | None] = mapped_column(Text)
+    title: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="queued", index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow, index=True
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    items_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    options: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    error: Mapped[str | None] = mapped_column(Text)
+
+    items: Mapped[list["SearchItem"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="SearchItem.position",
+    )
+
+
+class SearchItem(Base):
+    __tablename__ = "search_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "search_run_id", "position", name="uq_search_items_run_position"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    search_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("search_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    sku: Mapped[str | None] = mapped_column(String(64), index=True)
+    product_url: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str | None] = mapped_column(Text)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    original_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str | None] = mapped_column(String(8))
+    discount: Mapped[str | None] = mapped_column(String(16))
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
+    review_count: Mapped[int | None] = mapped_column(Integer)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    raw: Mapped[dict | None] = mapped_column(JsonType)
+
+    run: Mapped[SearchRun] = relationship(back_populates="items")

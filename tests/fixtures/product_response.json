@@ -1,0 +1,26 @@
+{
+  "widgetStates": {
+    "webProductHeading-1-default-1": "{\"title\": \"Биты магнитные, усиленные для шуруповерта\"}",
+    "webPrice-1-default-1": "{\"isAvailable\": true, \"cardPrice\": \"236 ₽\", \"price\": \"251 ₽\", \"originalPrice\": \"999 ₽\", \"showOriginalPrice\": true}",
+    "webReviewProductScore-1-default-1": "{\"totalScore\": 4.9, \"reviewsCount\": 39852, \"itemId\": \"2684123133\"}",
+    "webGallery-1-default-1": "{\"sku\": \"2684123133\", \"coverImage\": \"https://ir-20.ozone.ru/s3/multimedia-1-1/15179100805.jpg\", \"images\": [{\"src\": \"https://ir-20.ozone.ru/s3/multimedia-1-1/15179100805.jpg\", \"alt\": \"Биты #1\"}, {\"src\": \"https://ir-20.ozone.ru/s3/multimedia-1-p/7933532893.jpg\", \"alt\": \"Биты #2\"}, {\"src\": \"https://ir-20.ozone.ru/s3/multimedia-1-4/15130825492.jpg\", \"alt\": \"Биты #3\"}, {\"src\": \"https://ir-20.ozone.ru/s3/multimedia-1-5/15130818761.jpg\", \"alt\": \"Биты #4\"}, {\"src\": \"https://ir-20.ozone.ru/s3/multimedia-1-y/15130820302.jpg\", \"alt\": \"Биты #5\"}, {\"src\": \"https://ir-20.ozone.ru/s3/multimedia-1-u/7847570010.jpg\", \"alt\": \"Биты #6\"}], \"isUnavailable\": false}",
+    "webDetailSKU-1-default-1": "{\"copyText\": \"2684123133\"}",
+    "webCurrentSeller-1-default-1": "{\"sellerCell\": {\"centerBlock\": {\"title\": {\"text\": \"BestPick\"}}}}",
+    "webShortCharacteristics-1-default-1": "{\"characteristics\": [{\"title\": {\"textRs\": [{\"type\": \"text\", \"content\": \"Тип\"}]}, \"values\": [{\"text\": \"Бита\"}]}, {\"title\": {\"textRs\": [{\"type\": \"text\", \"content\": \"Тип биты\"}]}, \"values\": [{\"text\": \"Односторонняя\"}]}, {\"title\": {\"textRs\": [{\"type\": \"text\", \"content\": \"Тип наконечника\"}]}, \"values\": [{\"text\": \"PH2\"}]}, {\"title\": {\"textRs\": [{\"type\": \"text\", \"content\": \"Патрон/шпиндель/крепление\"}]}, \"values\": [{\"text\": \"Шестигранник\"}]}, {\"title\": {\"textRs\": [{\"type\": \"text\", \"content\": \"Размер головки, дюйм\"}]}, \"values\": [{\"text\": \"1/4\\\"\"}]}]}"
+  },
+  "seo": {
+    "title": "Биты магнитные, усиленные для шуруповерта купить на OZON по низкой цене (2684123133)",
+    "link": [
+      {
+        "rel": "canonical",
+        "href": "https://www.ozon.ru/product/bity-magnitnye-usilennye-dlya-shurupoverta-2684123133/"
+      }
+    ]
+  },
+  "pageInfo": {
+    "analyticsInfo": {
+      "sku": 2684123133
+    },
+    "pageType": "pdp"
+  }
+}

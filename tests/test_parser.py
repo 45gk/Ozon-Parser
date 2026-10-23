@@ -20,8 +20,7 @@ from ozon_parser import (
 )
 from ozon_parser.cli import _build_parser, main as cli_main
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = PROJECT_ROOT / "json_responce.json"
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "product_response.json"
 PRODUCT_URL = (
     "https://www.ozon.ru/product/bity-magnitnye-usilennye-dlya-shurupoverta-2684123133/"
 )
