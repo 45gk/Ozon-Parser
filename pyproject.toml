@@ -1,0 +1,39 @@
+[project]
+name = "ozon-product-parser"
+version = "0.3.0"
+description = "CLI and FastAPI web app for parsing public Ozon product pages"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "httpx>=0.28.1,<1.0",
+    "jinja2>=3.1,<4.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "python-multipart>=0.0.20,<1.0",
+    "sqlalchemy>=2.0,<3.0",
+    "uvicorn>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+browser = [
+    "playwright>=1.50,<2",
+]
+
+[project.scripts]
+ozon-parse = "ozon_parser.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ozon_parser", "app"]
+
+[tool.hatch.build]
+exclude = [
+    ".venv",
+    ".uv-cache",
+    ".ruff_cache",
+    "tests",
+    "docs",
+    "json_responce.json",
+]

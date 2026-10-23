@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Ozon Parse Lab — история парсингов{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Ozon product parser</p>
+    <h1>Карточки Ozon<br><span>в одном окне</span></h1>
+    <p class="hero-lead">
+      Запускай парсинг по ссылке, смотри результат и возвращайся к истории.
+      Живой режим работает через обычный Chrome по CDP.
+    </p>
+    <div class="hero-actions">
+      <a class="btn primary" href="#new-run">Запустить парсинг</a>
+      <a class="btn ghost" href="#history">Смотреть историю</a>
+    </div>
+  </div>
+  <div class="hero-card">
+    <div class="hero-card-top">
+      <span class="dot dot-green"></span>
+      <span>pipeline ready</span>
+    </div>
+    <div class="hero-flow">
+      <span>URL</span><i>→</i><span>Chrome CDP</span><i>→</i><span>JSON</span><i>→</i><span>Postgres</span>
+    </div>
+    <p class="hero-card-note">FastAPI · PostgreSQL · Playwright</p>
+  </div>
+</section>
+
+<section class="stats-grid" aria-label="Статистика">
+  <article class="stat-card">
+    <span class="stat-label">Всего запусков</span>
+    <strong class="stat-value">{{ stats.total }}</strong>
+    <span class="stat-note">за всё время</span>
+  </article>
+  <article class="stat-card stat-success">
+    <span class="stat-label">Успешно</span>
+    <strong class="stat-value">{{ stats.success }}</strong>
+    <span class="stat-note">{{ stats.success_rate }}% от всех</span>
+  </article>
+  <article class="stat-card stat-failed">
+    <span class="stat-label">Ошибки</span>
+    <strong class="stat-value">{{ stats.failed }}</strong>
+    <span class="stat-note">можно повторить</span>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">Уникальных товаров</span>
+    <strong class="stat-value">{{ stats.unique_products }}</strong>
+    <span class="stat-note">по SKU</span>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">Среднее время</span>
+    <strong class="stat-value">{{ stats.avg_duration_ms|duration }}</strong>
+    <span class="stat-note">успешного парсинга</span>
+  </article>
+</section>
+
+<section id="new-run" class="panel form-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Новый запуск</p>
+      <h2>Спарсить карточку</h2>
+      <p class="panel-subtitle">Вставь ссылку на товар — остальное парсер сделает сам.</p>
+    </div>
+    <span class="panel-mark">01</span>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <form id="run-form" class="run-form" method="post" action="/runs">
+    <div class="field field-wide">
+      <label for="url">Ссылка на товар</label>
+      <input
+        id="url"
+        name="url"
+        type="url"
+        required
+        autocomplete="off"
+        spellcheck="false"
+        value="{{ prefill_url }}"
+        placeholder="https://www.ozon.ru/product/..."
+      >
+      <small>Только карточки Ozon: /product/...</small>
+    </div>
+
+    <div class="field source-field">
+      <label for="source">Источник</label>
+      <select id="source" name="source">
+        {% set form_source = filters.source or 'cdp' %}
+        <option value="cdp" {% if form_source == 'cdp' %}selected{% endif %}>Chrome CDP — рекомендуется</option>
+        <option value="browser" {% if form_source == 'browser' %}selected{% endif %}>Playwright — автозапуск</option>
+        <option value="api" {% if form_source == 'api' %}selected{% endif %}>Direct API</option>
+        <option value="html" {% if form_source == 'html' %}selected{% endif %}>HTML</option>
+      </select>
+      <small>CDP использует уже запущенный Chrome и проходит антибот.</small>
+    </div>
+
+    <div class="field cdp-field" data-source-field="cdp">
+      <label for="cdp_url">CDP URL</label>
+      <input id="cdp_url" name="cdp_url" type="url" value="{{ cdp_url }}" placeholder="http://127.0.0.1:9222">
+      <small>Порт remote debugging вашего Chrome.</small>
+    </div>
+
+    <div class="field checkbox-field" data-source-field="browser">
+      <label class="checkbox-label">
+        <input type="checkbox" name="headless" value="on">
+        <span>Headless</span>
+      </label>
+      <small>Без окна, но Ozon чаще показывает challenge.</small>
+    </div>
+
+    <details class="advanced">
+      <summary>Дополнительные параметры</summary>
+      <div class="advanced-grid">
+        <div class="field">
+          <label for="timeout">Таймаут, сек</label>
+          <input id="timeout" name="timeout" type="number" min="5" max="300" step="1" value="{{ default_timeout|int }}">
+        </div>
+        <div class="field">
+          <label for="challenge_timeout">Ожидание challenge, сек</label>
+          <input id="challenge_timeout" name="challenge_timeout" type="number" min="0" max="600" step="5" value="{{ default_challenge_timeout|int }}">
+        </div>
+      </div>
+    </details>
+
+    <div class="form-actions">
+      <button class="btn primary" type="submit" id="run-submit">Запустить парсинг</button>
+      <span id="form-status" class="form-status" role="status"></span>
+    </div>
+  </form>
+
+  <div class="callout">
+    <span class="callout-icon">i</span>
+    <p>
+      Для CDP сначала запусти Chrome:
+      <code>--remote-debugging-port=9222 --user-data-dir="$HOME/.ozon-chrome"</code>.
+      Если Ozon покажет проверку — пройди её в открытом окне.
+    </p>
+  </div>
+</section>
+
+<section id="history" class="panel history-panel">
+  <div class="panel-heading">
+    <div>
+      <p class="eyebrow">Архив</p>
+      <h2>История парсингов</h2>
+      <p class="panel-subtitle">Найдено {{ total }} записей.</p>
+    </div>
+    <a class="btn ghost small" href="/">Обновить</a>
+  </div>
+
+  <form class="filters" method="get" action="/">
+    <input
+      class="filter-search"
+      type="search"
+      name="q"
+      value="{{ filters.q }}"
+      placeholder="Поиск по URL, названию, SKU или продавцу"
+      aria-label="Поиск по истории"
+    >
+    <select name="status" aria-label="Статус">
+      <option value="">Все статусы</option>
+      {% for value, label in status_labels.items() %}
+      <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="source" aria-label="Источник">
+      <option value="">Все источники</option>
+      {% for value, label in source_labels.items() %}
+      <option value="{{ value }}" {% if filters.source == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">Фильтровать</button>
+    {% if filters.q or filters.status or filters.source %}
+    <a class="btn ghost" href="/">Сбросить</a>
+    {% endif %}
+  </form>
+
+  <div class="table-wrap">
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>Статус</th>
+          <th>Товар</th>
+          <th>Источник</th>
+          <th>Цена</th>
+          <th>Рейтинг</th>
+          <th>Запуск</th>
+          <th>Время</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in runs %}
+        <tr>
+          <td>
+            <span class="badge status-{{ run.status }}">{{ status_labels.get(run.status, run.status) }}</span>
+          </td>
+          <td class="product-cell">
+            {% if run.image_url %}
+            <img class="thumb" src="{{ run.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+            {% else %}
+            <span class="thumb thumb-placeholder">O</span>
+            {% endif %}
+            <span class="product-lines">
+              <a class="product-name" href="/runs/{{ run.id }}">{{ run.name or 'Парсинг без названия' }}</a>
+              <small>SKU {{ run.sku or '—' }}{% if run.seller %} · {{ run.seller }}{% endif %}</small>
+            </span>
+          </td>
+          <td><span class="source-chip">{{ source_labels.get(run.source, run.source) }}</span></td>
+          <td class="nowrap">{{ run.price|money(run.currency) }}</td>
+          <td class="nowrap"><span class="rating-cell">{{ run.rating|rating }} <small>{{ run.review_count or 0 }}</small></span></td>
+          <td class="nowrap">{{ run.created_at|dt }}</td>
+          <td class="nowrap">{{ run.duration_ms|duration }}</td>
+          <td class="nowrap"><a class="table-link" href="/runs/{{ run.id }}">Открыть →</a></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <strong>Пока нет парсингов</strong>
+              <span>Вставь ссылку на товар выше и запусти первый парсинг.</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pages > 1 %}
+  <nav class="pagination" aria-label="Пагинация">
+    {% if page > 1 %}
+    <a class="btn ghost small" href="{{ request.url.include_query_params(page=page-1) }}">← Назад</a>
+    {% else %}
+    <span class="btn ghost small disabled">← Назад</span>
+    {% endif %}
+    <span class="page-info">Страница {{ page }} из {{ pages }}</span>
+    {% if page < pages %}
+    <a class="btn ghost small" href="{{ request.url.include_query_params(page=page+1) }}">Вперёд →</a>
+    {% else %}
+    <span class="btn ghost small disabled">Вперёд →</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

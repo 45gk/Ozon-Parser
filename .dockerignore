@@ -1,0 +1,15 @@
+.venv
+.uv-cache
+.ruff_cache
+__pycache__
+*.py[cod]
+.pytest_cache
+.git
+.gitignore
+docs
+tests
+json_responce.json
+*.db
+*.sqlite3
+.env
+.DS_Store

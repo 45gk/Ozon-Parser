@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ run.name or "Парсинг" }} — Ozon Parse Lab{% endblock %}
+
+{% block content %}
+<a class="back-link" href="/">← Назад к истории</a>
+
+<section class="detail-head">
+  <div class="detail-title">
+    <p class="eyebrow">Результат парсинга</p>
+    <h1>{{ run.name or "Карточка товара" }}</h1>
+    <a class="product-url" href="{{ run.product_url }}" target="_blank" rel="noreferrer">{{ run.product_url }}</a>
+  </div>
+  <div class="detail-actions">
+    <span class="badge status-{{ run.status }}">{{ status_labels.get(run.status, run.status) }}</span>
+    <button
+      class="btn secondary"
+      type="button"
+      data-rerun-url="{{ run.product_url }}"
+      data-rerun-source="{{ run.source }}"
+      data-rerun-cdp-url="{{ options.get('cdp_url', '') }}"
+      data-rerun-headless="{{ 'true' if options.get('headless') else 'false' }}"
+    >Повторить</button>
+  </div>
+</section>
+
+<section class="meta-strip">
+  <span><b>Источник</b> {{ source_labels.get(run.source, run.source) }}</span>
+  <span><b>Создан</b> {{ run.created_at|dt }}</span>
+  <span><b>Время</b> {{ run.duration_ms|duration }}</span>
+  <span><b>SKU</b> {{ run.sku or '—' }}</span>
+</section>
+
+{% if run.status in ['queued', 'running'] %}
+<section class="panel progress-panel">
+  <div class="spinner" aria-hidden="true"></div>
+  <div>
+    <h2>Парсинг выполняется…</h2>
+    <p class="panel-subtitle">
+      Загружаем карточку и JSON из API. Если Ozon покажет проверку — пройди её
+      в открытом окне Chrome. Страница обновится автоматически.
+    </p>
+  </div>
+</section>
+{% endif %}
+
+{% if run.status == 'failed' %}
+<section class="panel error-panel">
+  <p class="eyebrow">Ошибка</p>
+  <h2>Не удалось получить данные</h2>
+  <pre class="error-box">{{ run.error or "Неизвестная ошибка" }}</pre>
+  <div class="panel-actions">
+    <a class="btn secondary" href="/">В историю</a>
+    <button
+      class="btn primary"
+      type="button"
+      data-rerun-url="{{ run.product_url }}"
+      data-rerun-source="{{ run.source }}"
+      data-rerun-cdp-url="{{ options.get('cdp_url', '') }}"
+    >Попробовать снова</button>
+  </div>
+</section>
+{% endif %}
+
+{% if run.status == 'success' %}
+  {% if product %}
+  <section class="product-hero panel">
+    <div class="product-media">
+      {% if images %}
+      <img src="{{ images[0] }}" alt="{{ product.name or 'Товар' }}" referrerpolicy="no-referrer">
+      {% else %}
+      <div class="product-media-placeholder">O</div>
+      {% endif %}
+    </div>
+    <div class="product-info">
+      <p class="eyebrow">Карточка</p>
+      <h2>{{ product.name or run.name or "Без названия" }}</h2>
+
+      <div class="price-row">
+        <span class="price-main">{{ product.price|money(product.currency) }}</span>
+        {% if product.card_price %}
+        <span class="price-card">с картой {{ product.card_price|money(product.currency) }}</span>
+        {% endif %}
+        {% if product.original_price %}
+        <s class="price-old">{{ product.original_price|money(product.currency) }}</s>
+        {% endif %}
+      </div>
+
+      <div class="rating-row">
+        <span class="stars">{{ product.rating|rating }}</span>
+        <span class="muted">{{ product.review_count or 0 }} отзывов</span>
+        {% if product.in_stock %}
+        <span class="stock-pill in-stock">В наличии</span>
+        {% elif product.in_stock == false %}
+        <span class="stock-pill out-stock">Нет в наличии</span>
+        {% endif %}
+      </div>
+
+      <dl class="meta-list">
+        <div><dt>SKU</dt><dd>{{ product.sku or run.sku or '—' }}</dd></div>
+        <div><dt>Продавец</dt><dd>{{ product.seller or run.seller or '—' }}</dd></div>
+        <div><dt>Бренд</dt><dd>{{ product.brand or '—' }}</dd></div>
+        <div><dt>Валюта</dt><dd>{{ product.currency or '—' }}</dd></div>
+        <div><dt>Наличие</dt><dd>{% if product.in_stock %}В наличии{% elif product.in_stock == false %}Нет в наличии{% else %}—{% endif %}</dd></div>
+      </dl>
+
+      <div class="panel-actions">
+        <a class="btn primary" href="{{ run.product_url }}" target="_blank" rel="noreferrer">Открыть на Ozon</a>
+        <a class="btn ghost" href="#json">Смотреть JSON</a>
+      </div>
+    </div>
+  </section>
+
+  {% if product.description %}
+  <section class="panel">
+    <div class="panel-heading compact">
+      <div>
+        <p class="eyebrow">Описание</p>
+        <h2>О товаре</h2>
+      </div>
+    </div>
+    <p class="description">{{ product.description }}</p>
+  </section>
+  {% endif %}
+
+  {% if characteristics %}
+  <section class="panel">
+    <div class="panel-heading compact">
+      <div>
+        <p class="eyebrow">Характеристики</p>
+        <h2>Параметры</h2>
+      </div>
+      <span class="panel-mark">{{ characteristics|length }}</span>
+    </div>
+    <div class="characteristics-grid">
+      {% for title, value in characteristics.items() %}
+      <div class="characteristic">
+        <span>{{ title }}</span>
+        <strong>{{ value }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if images|length > 1 %}
+  <section class="panel">
+    <div class="panel-heading compact">
+      <div>
+        <p class="eyebrow">Галерея</p>
+        <h2>Изображения</h2>
+      </div>
+      <span class="panel-mark">{{ images|length }}</span>
+    </div>
+    <div class="gallery">
+      {% for image in images %}
+      <a href="{{ image }}" target="_blank" rel="noreferrer">
+        <img src="{{ image }}" alt="Изображение {{ loop.index }}" loading="lazy" referrerpolicy="no-referrer">
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="panel" id="json">
+    <details class="json-panel">
+      <summary>
+        <span>
+          <span class="eyebrow">Сырые данные</span>
+          <strong>Полный JSON парсинга</strong>
+        </span>
+        <span class="json-hint">развернуть</span>
+      </summary>
+      <pre><code>{{ product_json }}</code></pre>
+    </details>
+  </section>
+  {% else %}
+  <section class="panel">
+    <div class="empty-state">
+      <strong>Успех без данных</strong>
+      <span>Парсер завершился, но не сохранил карточку. Проверь JSON в истории.</span>
+    </div>
+  </section>
+  {% endif %}
+{% endif %}
+
+{% if options %}
+<section class="panel options-panel">
+  <details>
+    <summary>Параметры запуска</summary>
+    <pre class="options-json">{{ options|tojson(indent=2) }}</pre>
+  </details>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if run.status in ['queued', 'running'] %}
+<script>window.__RUN_ID__ = "{{ run.id }}";</script>
+{% endif %}
+{% endblock %}
