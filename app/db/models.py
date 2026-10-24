@@ -92,6 +92,22 @@ class SearchRun(Base):
         order_by="SearchItem.position",
     )
 
+    @property
+    def products_count(self) -> int:
+        return sum(
+            1
+            for item in self.items
+            if item.product is not None and item.product.status == "success"
+        )
+
+    @property
+    def products_failed(self) -> int:
+        return sum(
+            1
+            for item in self.items
+            if item.product is not None and item.product.status != "success"
+        )
+
 
 class SearchItem(Base):
     __tablename__ = "search_items"
@@ -123,3 +139,50 @@ class SearchItem(Base):
     raw: Mapped[dict | None] = mapped_column(JsonType)
 
     run: Mapped[SearchRun] = relationship(back_populates="items")
+    product: Mapped["SearchItemProduct | None"] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        single_parent=True,
+        uselist=False,
+    )
+
+
+class SearchItemProduct(Base):
+    """A parsed product card attached to one search result position."""
+
+    __tablename__ = "search_item_products"
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    search_item_id: Mapped[UUID] = mapped_column(
+        ForeignKey("search_items.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="success", index=True
+    )
+    name: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    sku: Mapped[str | None] = mapped_column(String(64), index=True)
+    price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    card_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    original_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str | None] = mapped_column(String(8))
+    in_stock: Mapped[bool | None] = mapped_column(Boolean)
+    seller: Mapped[str | None] = mapped_column(String(255))
+    brand: Mapped[str | None] = mapped_column(String(255))
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
+    review_count: Mapped[int | None] = mapped_column(Integer)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    characteristics: Mapped[dict | None] = mapped_column(JsonType)
+    data: Mapped[dict | None] = mapped_column(JsonType)
+    error: Mapped[str | None] = mapped_column(Text)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    parsed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utcnow
+    )
+
+    item: Mapped[SearchItem] = relationship(back_populates="product")

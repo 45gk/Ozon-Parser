@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from math import ceil
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -13,6 +13,7 @@ from app.db.session import get_database
 from app.repositories.searches import SearchRepository
 from app.search_schemas import SearchCreate
 from app.services.search_runner import build_search_options, run_search
+from ozon_parser.search import extract_search_query
 from app.templating import templates
 
 router = APIRouter()
@@ -25,14 +26,6 @@ def _first_error(exc: ValidationError) -> str:
     error = exc.errors()[0] if exc.errors() else {}
     message = str(error.get("msg", "Некорректные данные"))
     return message.removeprefix("Value error, ")
-
-
-def _query_from_url(search_url: str) -> str | None:
-    values = parse_qs(urlparse(search_url).query).get("text")
-    if not values:
-        return None
-    query = values[0].strip()
-    return query or None
 
 
 @router.get("/searches", response_class=HTMLResponse)
@@ -124,6 +117,7 @@ def create_search_form(
     timeout: float = Form(settings.default_timeout),
     challenge_timeout: float = Form(settings.default_challenge_timeout),
     limit: int = Form(20),
+    parse_products: str | None = Form(None),
     headless: str | None = Form(None),
 ) -> RedirectResponse:
     try:
@@ -134,6 +128,7 @@ def create_search_form(
             timeout=timeout,
             challenge_timeout=challenge_timeout,
             limit=limit,
+            parse_products=parse_products in {"on", "true", "1"},
             headless=headless in {"on", "true", "1"},
         )
     except ValidationError as exc:
@@ -146,11 +141,12 @@ def create_search_form(
         timeout=payload.timeout,
         challenge_timeout=payload.challenge_timeout,
         limit=payload.limit,
+        parse_products=payload.parse_products,
         headless=payload.headless,
     )
     run = SearchRepository(db).create(
         search_url=payload.url,
-        query=_query_from_url(payload.url),
+        query=extract_search_query(payload.url),
         source=payload.source,
         options=options,
     )

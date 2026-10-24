@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import time
 import unittest
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -16,8 +17,10 @@ os.environ["CDP_URL"] = "http://127.0.0.1:9222"
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db.base import Base  # noqa: E402
+from app.db.models import SearchRun  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.services.search_runner import _parse_search  # noqa: E402
 from ozon_parser import OzonFetchError, OzonProduct  # noqa: E402
 from ozon_parser.search import (  # noqa: E402
     OzonSearchError,
@@ -68,6 +71,41 @@ FAKE_SEARCH = OzonSearchResult(
         ),
     ),
     next_page=None,
+)
+
+FAKE_DETAIL_PRODUCT = OzonProduct(
+    source_url="https://www.ozon.ru/product/macbook-air-13-m5-3589144498/",
+    name="Apple MacBook Air 13 M5",
+    description="Ноутбук с чипом Apple M5.",
+    price=Decimal("106435"),
+    currency="RUB",
+    availability="https://schema.org/InStock",
+    rating=Decimal("4.9"),
+    review_count=1039,
+    sku="3589144498",
+    image_urls=("https://cdn.example/macbook-detail.jpg",),
+    original_price=Decimal("129990"),
+    card_price=Decimal("104990"),
+    in_stock=True,
+    seller="MacStore",
+    brand="Apple",
+    characteristics={"Цвет": "Тёмно-синий", "Память": "16 ГБ"},
+)
+
+FAKE_ENRICHED_SEARCH = replace(
+    FAKE_SEARCH,
+    items=(
+        replace(
+            FAKE_SEARCH.items[0],
+            product=FAKE_DETAIL_PRODUCT,
+            product_duration_ms=420,
+        ),
+        replace(
+            FAKE_SEARCH.items[1],
+            product_error="Ozon API вернул HTTP 404",
+            product_duration_ms=12,
+        ),
+    ),
 )
 
 FAKE_PRODUCT = OzonProduct(
@@ -326,6 +364,121 @@ class WebAppTests(unittest.TestCase):
                 json={"url": PRODUCT_URL, "source": "cdp"},
             )
         self.assertEqual(response.status_code, 422)
+
+    def test_search_accepts_free_text(self) -> None:
+        with TestClient(create_app()) as client:
+            with patch(
+                "app.services.search_runner._parse_search",
+                return_value=FAKE_SEARCH,
+            ):
+                response = client.post(
+                    "/api/searches",
+                    json={
+                        "url": "  macbook   air m5  ",
+                        "source": "cdp",
+                        "limit": 2,
+                        "parse_products": False,
+                    },
+                )
+            self.assertEqual(response.status_code, 202)
+            run = _wait_for_search(client, response.json()["id"])
+
+        self.assertEqual(
+            run["search_url"],
+            "https://www.ozon.ru/search/?text=macbook+air+m5&from_global=true",
+        )
+        self.assertEqual(run["query"], "macbook air m5")
+        self.assertFalse(run["options"]["parse_products"])
+        self.assertEqual(run["products_count"], 0)
+
+    def test_search_free_text_form_redirects(self) -> None:
+        with TestClient(create_app()) as client:
+            with patch(
+                "app.services.search_runner._parse_search",
+                return_value=FAKE_SEARCH,
+            ):
+                response = client.post(
+                    "/searches",
+                    data={
+                        "url": "macbook air m5",
+                        "source": "cdp",
+                        "limit": "2",
+                        "parse_products": "on",
+                        "timeout": "30",
+                        "challenge_timeout": "60",
+                    },
+                    follow_redirects=False,
+                )
+            self.assertEqual(response.status_code, 303)
+            run_id = response.headers["location"].rsplit("/", 1)[-1]
+            run = _wait_for_search(client, run_id)
+
+        self.assertEqual(
+            run["search_url"],
+            "https://www.ozon.ru/search/?text=macbook+air+m5&from_global=true",
+        )
+        self.assertTrue(run["options"]["parse_products"])
+
+    def test_search_too_short_text_is_rejected(self) -> None:
+        with TestClient(create_app()) as client:
+            response = client.post(
+                "/api/searches",
+                json={"url": "x", "source": "cdp"},
+            )
+        self.assertEqual(response.status_code, 422)
+
+    def test_search_persists_product_details(self) -> None:
+        with TestClient(create_app()) as client:
+            with patch(
+                "app.services.search_runner._parse_search",
+                return_value=FAKE_ENRICHED_SEARCH,
+            ):
+                response = client.post(
+                    "/api/searches",
+                    json={"url": SEARCH_URL, "source": "cdp", "limit": 2},
+                )
+            run_id = response.json()["id"]
+            run = _wait_for_search(client, run_id)
+            page = client.get(f"/searches/{run_id}")
+
+        self.assertEqual(run["status"], "success")
+        self.assertEqual(run["products_count"], 1)
+        self.assertEqual(run["products_failed"], 1)
+        product = run["items"][0]["product"]
+        self.assertEqual(product["status"], "success")
+        self.assertEqual(product["seller"], "MacStore")
+        self.assertEqual(product["brand"], "Apple")
+        self.assertTrue(product["in_stock"])
+        self.assertEqual(product["characteristics"]["Цвет"], "Тёмно-синий")
+        self.assertEqual(product["card_price"], "104990.00")
+        self.assertEqual(product["duration_ms"], 420)
+        self.assertIn("Ozon API вернул HTTP 404", run["items"][1]["product"]["error"])
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Карточка разобрана", page.text)
+        self.assertIn("Карточка не разобрана", page.text)
+        self.assertIn("MacStore", page.text)
+        self.assertIn("Ноутбук с чипом Apple M5.", page.text)
+        self.assertIn("Тёмно-синий", page.text)
+        self.assertIn("Карточек разобрано 1 из 2", page.text)
+
+    def test_parse_products_flag_is_passed_to_browser(self) -> None:
+        run = SearchRun(
+            search_url=SEARCH_URL,
+            source="cdp",
+            options={
+                "parse_products": False,
+                "limit": 2,
+                "timeout": 30,
+                "challenge_timeout": 60,
+                "cdp_url": "http://127.0.0.1:9222",
+            },
+        )
+        with patch(
+            "app.services.search_runner.fetch_search_browser",
+            return_value=FAKE_SEARCH,
+        ) as fetch:
+            _parse_search(run)
+        self.assertFalse(fetch.call_args.kwargs["include_products"])
 
     def test_search_form_submission_redirects(self) -> None:
         with TestClient(create_app()) as client:

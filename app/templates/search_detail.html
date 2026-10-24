@@ -24,6 +24,7 @@
       data-search-rerun-source="{{ run.source }}"
       data-search-rerun-cdp-url="{{ options.get('cdp_url', '') }}"
       data-search-rerun-limit="{{ options.get('limit', 20) }}"
+      data-search-rerun-parse-products="{{ 'true' if options.get('parse_products', True) else 'false' }}"
       data-search-rerun-headless="{{ 'true' if options.get('headless') else 'false' }}"
     >Повторить</button>
   </div>
@@ -34,6 +35,7 @@
   <span><b>Создан</b> {{ run.created_at|dt }}</span>
   <span><b>Время</b> {{ run.duration_ms|duration }}</span>
   <span><b>Товаров</b> {{ run.items_count }}</span>
+  <span><b>Карточек</b> {{ run.products_count }} / {{ run.items_count }}</span>
   <span><b>Лимит</b> {{ options.get('limit', '—') }}</span>
 </section>
 
@@ -64,6 +66,7 @@
       data-search-rerun-source="{{ run.source }}"
       data-search-rerun-cdp-url="{{ options.get('cdp_url', '') }}"
       data-search-rerun-limit="{{ options.get('limit', 20) }}"
+      data-search-rerun-parse-products="{{ 'true' if options.get('parse_products', True) else 'false' }}"
     >Попробовать снова</button>
   </div>
 </section>
@@ -76,6 +79,9 @@
       <div>
         <p class="eyebrow">Топ выдачи</p>
         <h2>Первые {{ items|length }} товаров</h2>
+        <p class="panel-subtitle">
+          Карточек разобрано {{ run.products_count }} из {{ items|length }}{% if run.products_failed %} · ошибок {{ run.products_failed }}{% endif %}
+        </p>
       </div>
       <span class="panel-mark">order by Ozon</span>
     </div>
@@ -97,8 +103,50 @@
             {% if item.discount %}<span class="search-discount">{{ item.discount }}</span>{% endif %}
             {% if item.rating %}<span class="search-rating">{{ item.rating|rating_pretty }}</span>{% endif %}
             {% if item.review_count %}<span class="muted">{{ item.review_count }} отзывов</span>{% endif %}
+            {% if item.product and item.product.status == 'success' %}
+            <span class="card-badge card-badge-ok">Карточка разобрана</span>
+            {% elif item.product %}
+            <span class="card-badge card-badge-error">Карточка не разобрана</span>
+            {% elif options.get('parse_products', True) %}
+            <span class="card-badge card-badge-muted">Карточка не запрашивалась</span>
+            {% endif %}
           </div>
-          <small>SKU {{ item.sku or '—' }}</small>
+          <small>
+            SKU {{ item.sku or '—' }}
+            {% if item.product and item.product.seller %} · {{ item.product.seller }}{% endif %}
+            {% if item.product and item.product.brand %} · {{ item.product.brand }}{% endif %}
+          </small>
+
+          {% if item.product and item.product.status == 'success' %}
+          <details class="card-details">
+            <summary>Детали карточки <span>{{ item.product.duration_ms|duration }}</span></summary>
+            <div class="card-details-body">
+              {% if item.product.description %}
+              <p class="card-description">{{ item.product.description }}</p>
+              {% endif %}
+              <dl class="card-meta">
+                <div><dt>Продавец</dt><dd>{{ item.product.seller or '—' }}</dd></div>
+                <div><dt>Бренд</dt><dd>{{ item.product.brand or '—' }}</dd></div>
+                <div><dt>Наличие</dt><dd>{% if item.product.in_stock %}В наличии{% elif item.product.in_stock == false %}Нет в наличии{% else %}—{% endif %}</dd></div>
+                <div><dt>Цена с картой</dt><dd>{{ item.product.card_price|money_pretty(item.product.currency) }}</dd></div>
+                <div><dt>Рейтинг</dt><dd>{{ item.product.rating|rating_pretty }}</dd></div>
+                <div><dt>Разобрана</dt><dd>{{ item.product.parsed_at|dt }}</dd></div>
+              </dl>
+              {% if item.product.characteristics %}
+              <div class="card-characteristics">
+                {% for title, value in item.product.characteristics.items() %}
+                <div class="card-characteristic"><span>{{ title }}</span><strong>{{ value }}</strong></div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </details>
+          {% elif item.product %}
+          <details class="card-details card-details-error">
+            <summary>Почему карточка не разобралась</summary>
+            <pre class="card-error">{{ item.product.error or 'Неизвестная ошибка' }}</pre>
+          </details>
+          {% endif %}
         </div>
         <a class="btn ghost small search-open" href="{{ item.product_url }}" target="_blank" rel="noreferrer">Ozon ↗</a>
       </article>

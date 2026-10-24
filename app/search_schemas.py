@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -7,22 +8,39 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
-from ozon_parser.urls import is_ozon_host
+from ozon_parser.search import OzonSearchError, build_search_query_url
+from ozon_parser.urls import is_search_url
 
 SearchSource = Literal["cdp", "browser"]
 
+_OZON_HOST_RE = re.compile(
+    r"^(?:www\.)?(?:[a-z0-9-]+\.)*ozon\.(?:ru|kz|by|uz|com)(?:/|$)",
+    re.IGNORECASE,
+)
 
-def _is_search_url(value: str) -> bool:
+
+def _looks_like_url(value: str) -> bool:
     parsed = urlparse(value)
-    return (
-        parsed.scheme in {"http", "https"}
-        and is_ozon_host(parsed.hostname)
-        and (parsed.path.startswith("/category/") or parsed.path.startswith("/search/"))
-    )
+    if parsed.scheme:
+        return True
+    return bool(_OZON_HOST_RE.match(value))
+
+
+def _normalized_url(value: str) -> str:
+    if "://" not in value:
+        return f"https://{value}"
+    return value
 
 
 class SearchCreate(BaseModel):
-    url: str = Field(..., min_length=12, max_length=3000)
+    """Create a search from a URL or a free-text product name.
+
+    ``url`` is kept as the single public field for backward compatibility. A
+    value that is not an URL is treated as a search phrase and converted to
+    ``https://www.ozon.ru/search/?text=...``.
+    """
+
+    url: str = Field(..., min_length=2, max_length=3000)
     source: SearchSource = "cdp"
     cdp_url: str | None = None
     timeout: float = Field(default=settings.default_timeout, ge=5, le=300)
@@ -30,17 +48,27 @@ class SearchCreate(BaseModel):
         default=settings.default_challenge_timeout, ge=0, le=600
     )
     limit: int = Field(default=20, ge=1, le=100)
+    parse_products: bool = True
     headless: bool = False
 
     @field_validator("url")
     @classmethod
     def validate_url(cls, value: str) -> str:
         value = value.strip()
-        if not _is_search_url(value):
-            raise ValueError(
-                "Нужна ссылка на выдачу Ozon: /category/... или /search/..."
-            )
-        return value
+        if not value:
+            raise ValueError("Введите ссылку на выдачу Ozon или название товара.")
+        if _looks_like_url(value):
+            normalized = _normalized_url(value)
+            if not is_search_url(normalized):
+                raise ValueError(
+                    "Нужна ссылка на выдачу Ozon: /category/... или /search/... "
+                    "Либо введите название товара без ссылки."
+                )
+            return normalized
+        try:
+            return build_search_query_url(value)
+        except OzonSearchError as exc:
+            raise ValueError(str(exc)) from exc
 
     @field_validator("cdp_url")
     @classmethod
@@ -61,6 +89,28 @@ class SearchCreated(BaseModel):
     status: str
 
 
+class SearchProductOut(BaseModel):
+    status: str
+    name: str | None = None
+    description: str | None = None
+    sku: str | None = None
+    price: str | None = None
+    card_price: str | None = None
+    original_price: str | None = None
+    currency: str | None = None
+    in_stock: bool | None = None
+    seller: str | None = None
+    brand: str | None = None
+    rating: str | None = None
+    review_count: int | None = None
+    image_url: str | None = None
+    characteristics: dict[str, str] = Field(default_factory=dict)
+    data: dict[str, Any] | None = None
+    error: str | None = None
+    duration_ms: int | None = None
+    parsed_at: datetime | None = None
+
+
 class SearchItemOut(BaseModel):
     position: int
     sku: str | None = None
@@ -73,6 +123,7 @@ class SearchItemOut(BaseModel):
     rating: str | None = None
     review_count: int | None = None
     image_url: str | None = None
+    product: SearchProductOut | None = None
 
 
 class SearchRunSummary(BaseModel):
@@ -93,6 +144,8 @@ class SearchRunSummary(BaseModel):
 class SearchRunDetail(SearchRunSummary):
     items: list[SearchItemOut] = Field(default_factory=list)
     options: dict[str, Any] = Field(default_factory=dict)
+    products_count: int = 0
+    products_failed: int = 0
 
 
 class SearchList(BaseModel):

@@ -22,7 +22,7 @@ except ImportError:  # pragma: no cover - depends on an optional extra
     sync_playwright = None
 
 LOGGER = logging.getLogger(__name__)
-_CHALLENGE_MARKER = "challenge.html"
+_CHALLENGE_MARKERS = ("challenge.html", "captcha.html")
 
 
 def _require_playwright() -> None:
@@ -125,7 +125,8 @@ def _add_cookie_header(context: Any, cookie: str, product_url: str) -> None:
 
 
 def _is_challenge_url(url: str) -> bool:
-    return _CHALLENGE_MARKER in url
+    normalized = url.lower()
+    return any(marker in normalized for marker in _CHALLENGE_MARKERS)
 
 
 def _safe_title(page: Any) -> str:
@@ -249,7 +250,7 @@ def _payload(text: str) -> dict[str, Any] | None:
 def _challenge_url(payload: dict[str, Any] | None) -> str | None:
     if not payload:
         return None
-    for key in ("challengeURL", "challengeUrl"):
+    for key in ("challengeURL", "challengeUrl", "captchaURL", "captchaUrl"):
         value = payload.get(key)
         if isinstance(value, str) and value:
             return value

@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
-from dataclasses import dataclass, replace
+import time
+from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping
-from urllib.parse import urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
-from ozon_parser.api import API_PATH, _decode_states, _state
+from ozon_parser.api import (
+    API_PATH,
+    _decode_states,
+    _state,
+    build_api_url,
+    parse_product_json,
+)
 from ozon_parser.browser import (
     PlaywrightError,
     PlaywrightTimeoutError,
@@ -22,7 +30,11 @@ from ozon_parser.browser import (
     _require_playwright,
     sync_playwright,
 )
+from ozon_parser.fetch import OzonFetchError
+from ozon_parser.parser import OzonProduct
 from ozon_parser.urls import is_ozon_host
+
+LOGGER = logging.getLogger(__name__)
 
 
 class OzonSearchError(RuntimeError):
@@ -46,6 +58,9 @@ class OzonSearchItem:
     rating: Decimal | None
     review_count: int | None
     image_url: str | None
+    product: OzonProduct | None = field(default=None, compare=False)
+    product_error: str | None = None
+    product_duration_ms: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -62,6 +77,8 @@ class OzonSearchItem:
             "rating": str(self.rating) if self.rating is not None else None,
             "review_count": self.review_count,
             "image_url": self.image_url,
+            "product_error": self.product_error,
+            "product_duration_ms": self.product_duration_ms,
         }
 
 
@@ -322,6 +339,24 @@ def _parse_item(item: Any, position: int, base_url: str) -> OzonSearchItem | Non
     )
 
 
+def build_search_query_url(query: str, *, host: str = "www.ozon.ru") -> str:
+    """Turn a free-text product name into an Ozon search URL."""
+    normalized = re.sub(r"\s+", " ", query).strip()
+    if len(normalized) < 2:
+        raise OzonSearchError("Введите название товара или ссылку на выдачу Ozon.")
+    params = urlencode({"text": normalized, "from_global": "true"})
+    return f"https://{host}/search/?{params}"
+
+
+def extract_search_query(search_url: str) -> str | None:
+    """Return the `text` parameter of an Ozon category/search URL."""
+    values = parse_qs(urlparse(search_url).query).get("text")
+    if not values:
+        return None
+    query = values[0].strip()
+    return query or None
+
+
 def build_search_api_url(search_url: str) -> str:
     """Build the entrypoint-api URL for a category/search page."""
     parsed = urlparse(search_url)
@@ -409,6 +444,96 @@ def _json_payload(text: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _fetch_product_card(
+    page: Any,
+    product_url: str,
+    *,
+    headless: bool,
+    challenge_timeout: float,
+) -> OzonProduct:
+    """Read one product card via entrypoint-api in the current browser page."""
+    api_url = build_api_url(product_url)
+    status, text = _fetch_api_in_page(page, api_url)
+    if status == 200:
+        return parse_product_json(text, source_url=product_url)
+
+    payload = _json_payload(text)
+    challenge = _challenge_url(payload)
+    if challenge:
+        _handle_challenge(
+            page,
+            product_url,
+            challenge_url=challenge,
+            headless=headless,
+            timeout=challenge_timeout,
+        )
+        status, text = _fetch_api_in_page(page, api_url)
+        if status == 200:
+            return parse_product_json(text, source_url=product_url)
+
+    if status in {403, 429} or (payload and payload.get("incidentId")):
+        raise OzonFetchError(f"Ozon отклонил запрос карточки (HTTP {status}, антибот).")
+    if status == 200:
+        # A 200 response with a broken payload is reported by the parser.
+        return parse_product_json(text, source_url=product_url)
+    raise OzonFetchError(f"Ozon API вернул HTTP {status} для карточки.")
+
+
+def _blocking_product_error(message: str) -> bool:
+    normalized = message.lower()
+    return any(
+        marker in normalized
+        for marker in ("антибот", "http 403", "http 429", "challenge", "проверк")
+    )
+
+
+def _enrich_products(
+    page: Any,
+    items: tuple[OzonSearchItem, ...],
+    *,
+    headless: bool,
+    challenge_timeout: float,
+) -> tuple[OzonSearchItem, ...]:
+    """Fetch each card in the same session; keep per-item failures non-fatal."""
+    enriched: list[OzonSearchItem] = []
+    blocked_error: str | None = None
+    for item in items:
+        if blocked_error:
+            enriched.append(
+                replace(item, product_error=blocked_error, product_duration_ms=0)
+            )
+            continue
+
+        started = time.perf_counter()
+        try:
+            product = _fetch_product_card(
+                page,
+                item.product_url,
+                headless=headless,
+                challenge_timeout=challenge_timeout,
+            )
+            enriched.append(
+                replace(
+                    item,
+                    product=product,
+                    product_duration_ms=int((time.perf_counter() - started) * 1000),
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - one card must not fail the search
+            message = str(exc) or f"Ошибка разбора карточки: {type(exc).__name__}"
+            LOGGER.warning("Search card %s failed: %s", item.product_url, message)
+            if _blocking_product_error(message):
+                blocked_error = message
+            enriched.append(
+                replace(
+                    item,
+                    product_error=message,
+                    product_duration_ms=int((time.perf_counter() - started) * 1000),
+                )
+            )
+    return tuple(enriched)
+
+
 def fetch_search_browser(
     search_url: str,
     *,
@@ -417,6 +542,7 @@ def fetch_search_browser(
     timeout: float = 60.0,
     challenge_timeout: float = 120.0,
     limit: int = 20,
+    include_products: bool = False,
     channel: str | None = None,
     user_data_dir: str | None = None,
     cookie: str | None = None,
@@ -532,6 +658,13 @@ def fetch_search_browser(
             items = tuple(
                 replace(item, position=index + 1) for index, item in enumerate(items)
             )
+            if include_products:
+                items = _enrich_products(
+                    page,
+                    items,
+                    headless=headless,
+                    challenge_timeout=challenge_timeout,
+                )
             return OzonSearchResult(
                 search_url=search_url,
                 query=first.query,

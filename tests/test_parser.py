@@ -18,6 +18,7 @@ from ozon_parser import (
     parse_product_html,
     parse_product_json,
 )
+from ozon_parser.browser import _challenge_url
 from ozon_parser.cli import _build_parser, main as cli_main
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "product_response.json"
@@ -237,6 +238,19 @@ class HtmlParserTests(unittest.TestCase):
         self.assertEqual(product.review_count, 10)
         self.assertEqual(product.image_urls, ("https://cdn.example/1.jpg",))
         self.assertIsNone(product.in_stock)
+
+
+class ChallengeTests(unittest.TestCase):
+    def test_challenge_url_keys(self) -> None:
+        self.assertEqual(
+            _challenge_url({"challengeURL": "https://www.ozon.ru/challenge.html"}),
+            "https://www.ozon.ru/challenge.html",
+        )
+        self.assertEqual(
+            _challenge_url({"captchaURL": "https://www.ozon.ru/captcha.html?x=1"}),
+            "https://www.ozon.ru/captcha.html?x=1",
+        )
+        self.assertIsNone(_challenge_url({"incidentId": "x"}))
 
 
 class CliTests(unittest.TestCase):

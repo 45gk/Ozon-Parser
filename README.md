@@ -65,7 +65,9 @@ FastAPI + Jinja2 + PostgreSQL. Умеет:
 - хранить историю, фильтровать по статусу/источнику и искать по URL, названию, SKU, продавцу;
 - показывать карточку, характеристики, галерею и полный JSON;
 - повторять запуск одной кнопкой;
-- собирать топ товаров из поисковой выдачи Ozon (ссылки, цены, рейтинги).
+- искать по названию товара или по ссылке на выдачу;
+- собирать топ товаров из выдачи Ozon (ссылки, цены, рейтинги);
+- автоматически разбирать карточки найденных товаров и сохранять продавца, бренд, наличие, описание и характеристики.
 
 ![Дашборд Ozon Parse Lab](docs/EPARSE-2/assets/dashboard.png)
 
@@ -136,7 +138,7 @@ docker compose up --build
 | `GET` | `/api/runs/{id}` | Статус и результат |
 | `GET` | `/api/stats` | Общая статистика |
 | `GET` | `/health` | Проверка приложения и БД |
-| `POST` | `/api/searches` | Создать сбор топа выдачи, вернуть `202` и `id` |
+| `POST` | `/api/searches` | Создать сбор топа по ссылке или названию, вернуть `202` и `id` |
 | `GET` | `/api/searches` | История поисков с фильтрами |
 | `GET` | `/api/searches/{id}` | Статус и товары выдачи |
 | `GET` | `/api/searches/stats` | Статистика поисков |
@@ -155,31 +157,57 @@ curl -X POST http://127.0.0.1:8000/api/runs \
   }'
 ```
 
-## Поиск по выдаче
+## Поиск по названию или выдаче
 
-Отдельный режим: вставь ссылку на `/category/...` или `/search/...` — парсер заберёт
-первые N товаров из выдачи Ozon, сохранит ссылки, цены, скидки и рейтинги.
+Введи название товара — парсер сам построит
+`https://www.ozon.ru/search/?text=...`. Либо вставь ссылку на `/category/...`
+или `/search/...`, чтобы сохранить категорию и фильтры.
 
-![Поиск по выдаче](docs/EPARSE-3/assets/search-dashboard.png)
+![Поиск по названию и карточкам](docs/EPARSE-5/assets/search-form.png)
 
-- до 100 товаров за запуск (по умолчанию 20);
+- до 100 позиций за запуск (по умолчанию 20);
 - учитывается порядок выдачи Ozon, дубликаты по SKU убираются;
 - поддерживается пагинация выдачи через `infiniteVirtualPaginator.nextPage`;
-- результаты лежат в `search_runs` и `search_items`, не пересекаясь с `parse_runs`.
+- при включённом «Разбирать карточки» каждая позиция дополнительно запрашивается
+  через `entrypoint-api` в той же браузерной сессии;
+- подробности лежат в `search_item_products`: продавец, бренд, наличие,
+  описание, цена с картой, характеристики и полный JSON;
+- ошибка одной карточки не отменяет поиск: она сохраняется у позиции;
+- результаты лежат в `search_runs`, `search_items` и `search_item_products`,
+  не пересекаясь с `parse_runs`.
 
 ```bash
+# По названию товара
+curl -X POST http://127.0.0.1:8000/api/searches \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "macbook air m5",
+    "source": "cdp",
+    "limit": 10,
+    "parse_products": true,
+    "timeout": 45,
+    "challenge_timeout": 120
+  }'
+
+# По ссылке на категорию
 curl -X POST http://127.0.0.1:8000/api/searches \
   -H 'Content-Type: application/json' \
   -d '{
     "url": "https://www.ozon.ru/category/noutbuki-15692/apple-26303000/?text=macbook+air+m5",
     "source": "cdp",
     "limit": 20,
+    "parse_products": true,
     "timeout": 45,
     "challenge_timeout": 120
   }'
 ```
 
+`parse_products` по умолчанию `true`. Если карточки не нужны, передай `false` —
+поиск соберёт только плитки и завершится быстрее.
+
 Страница интерфейса: `http://127.0.0.1:8000/searches`.
+
+![Карточки в результатах поиска](docs/EPARSE-5/assets/search-detail.png)
 
 ## Живой запрос через браузер (CDP)
 
@@ -301,7 +329,7 @@ print(product.to_dict())
 | Шаблоны и статика | `app/templates/`, `app/static/` |
 | Docker | `Dockerfile`, `compose.yaml` |
 
-Схема БД создаётся автоматически при старте (`Base.metadata.create_all`). Таблица `parse_runs` хранит URL, источник, статус, тайминги, денормализованные поля карточки и полный JSON в `JSONB`. Для следующих изменений схемы стоит добавить Alembic.
+Схема БД создаётся автоматически при старте (`Base.metadata.create_all`). Таблица `parse_runs` хранит одиночные карточки, `search_runs` и `search_items` — выдачи, `search_item_products` — разобранные карточки внутри выдачи. Полные ответы хранятся в `JSONB`. Для следующих изменений существующих колонок стоит добавить Alembic.
 
 Фоновые задачи выполняются внутри процесса приложения, а парсинги сериализуются блокировкой. Запускайте приложение с одним worker (значение по умолчанию); несколько worker потребуют отдельной очереди задач.
 
@@ -311,11 +339,11 @@ print(product.to_dict())
 uv run python -m unittest discover -s tests -v
 ```
 
-- `tests/test_parser.py` — парсер, CLI, фикстура.
-- `tests/test_search_parser.py` — разбор поисковой выдачи и URL API.
+- `tests/test_parser.py` — парсер, CLI, фикстура, обработка challenge.
+- `tests/test_search_parser.py` — разбор выдачи, построение URL из названия, разбор карточек и partial failure.
 - `tests/test_web_app.py` — API, история, фильтры, шаблоны, фоновые runner'ы (SQLite + мок парсера).
 
-Тесты офлайн: не ходят в Ozon и не требуют Chrome.
+Всего 52 теста. Тесты офлайн: не ходят в Ozon и не требуют Chrome.
 
 ## Скилл документации
 
@@ -329,6 +357,22 @@ python3 .dsh/skills/task-documentation/scripts/scaffold_task_docs.py \
   --root docs --task-id EPARSE-5 --title "Название задачи"
 ```
 
+## OpenSpec
+
+Изменение «поиск по названию и автопарсинг карточек» оформлено как
+[`search-free-text-product-details`](openspec/changes/search-free-text-product-details/proposal.md).
+Проверка:
+
+```bash
+openspec validate search-free-text-product-details --strict
+```
+
+Изменение реализовано и проверено; после ревью его можно архивировать:
+
+```bash
+openspec archive search-free-text-product-details
+```
+
 ## Документация
 
 - [EPARSE-1: статус парсера](docs/EPARSE-1/STATUS.md)
@@ -339,6 +383,8 @@ python3 .dsh/skills/task-documentation/scripts/scaffold_task_docs.py \
 - [EPARSE-3: журнал решений](docs/EPARSE-3/REASONING.md)
 - [EPARSE-4: статус скилла документации](docs/EPARSE-4/STATUS.md)
 - [EPARSE-4: журнал решений по скиллу](docs/EPARSE-4/REASONING.md)
+- [EPARSE-5: статус поиска по названию и карточек](docs/EPARSE-5/STATUS.md)
+- [EPARSE-5: журнал решений](docs/EPARSE-5/REASONING.md)
 
 ## Ограничения
 
@@ -349,4 +395,7 @@ python3 .dsh/skills/task-documentation/scripts/scaffold_task_docs.py \
 - Структура `widgetStates` и состав виджетов могут меняться. Парсер ищет виджеты по префиксам (`webPrice`, `webGallery`, ...) и не падает, если части полей нет.
 - Цена и наличие зависят от региона, аккаунта и Ozon Карты; `price` — обычная цена, `card_price` — цена с картой.
 - Описание (`webDescription`) приходит не во всех ответах; тогда `description` остаётся `null`.
+- Автоматический разбор карточек делает отдельный запрос на каждую позицию. На 100 товарах это заметно дольше, чем сбор одной выдачи.
+- Карточки Ozon чаще требуют антибот-проверку, чем страница выдачи. Если Chrome показывает captcha, пройди её в открытом окне: парсер ждёт до `challenge_timeout` секунд. В headless-режиме проверку пройти нельзя.
+- Если Ozon не отдал карточку, поиск остаётся успешным, а у позиции сохраняется ошибка. Это видно на странице поиска.
 - Уважайте правила Ozon и не создавайте высокую нагрузку на сайт.

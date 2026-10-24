@@ -1,0 +1,53 @@
+{
+  "id": "6f8ec2fd-4f5f-4e02-98ad-97b0a0964ac3",
+  "search_url": "https://www.ozon.ru/category/noutbuki-15692/apple-26303000/?text=macbook+air+m5",
+  "query": "macbook air m5",
+  "title": "macbook air m5 - купить на OZON",
+  "source": "cdp",
+  "status": "success",
+  "items_count": 2,
+  "created_at": "2026-10-24T12:57:24.971954Z",
+  "started_at": "2026-10-24T12:57:24.979558Z",
+  "finished_at": "2026-10-24T12:57:25.670810Z",
+  "duration_ms": 689,
+  "error": null,
+  "items": [
+    {
+      "position": 1,
+      "sku": "3589144498",
+      "product_url": "https://www.ozon.ru/product/apple-macbook-air-13-m5-noutbuk-13-6-apple-m5-10-cpu-8-gpu-ram-16-gb-ssd-512-gb-apple-m5-3589144498/",
+      "name": "Apple MacBook Air 13 M5 Ноутбук 13.6\", Apple M5 (10 CPU, 8 GPU), RAM 16 ГБ, SSD 512 ГБ, Apple M5, MacOS, голубой, Английская раскладка",
+      "price": "105639.00",
+      "original_price": null,
+      "currency": "RUB",
+      "discount": null,
+      "rating": "4.90",
+      "review_count": 1040,
+      "image_url": "https://ir.ozone.ru/s3/multimedia-1-o/9218920380.jpg",
+      "product": null
+    },
+    {
+      "position": 2,
+      "sku": "3588816681",
+      "product_url": "https://www.ozon.ru/product/apple-macbook-air-13-m5-noutbuk-13-6-apple-m5-10-cpu-8-gpu-ram-16-gb-ssd-512-gb-apple-m5-macos-3588816681/",
+      "name": "Apple MacBook Air 13 M5 Ноутбук 13.6\", Apple M5 (10 CPU, 8 GPU), RAM 16 ГБ, SSD 512 ГБ, Apple M5, MacOS, темно-синий, Английская раскладка",
+      "price": "105377.00",
+      "original_price": "156054.00",
+      "currency": "RUB",
+      "discount": "−32%",
+      "rating": "4.90",
+      "review_count": 1040,
+      "image_url": "https://ir.ozone.ru/s3/multimedia-1-m/9218918686.jpg",
+      "product": null
+    }
+  ],
+  "options": {
+    "limit": 2,
+    "cdp_url": "http://127.0.0.1:9222",
+    "timeout": 45.0,
+    "parse_products": false,
+    "challenge_timeout": 120.0
+  },
+  "products_count": 0,
+  "products_failed": 0
+}

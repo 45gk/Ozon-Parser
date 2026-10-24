@@ -12,14 +12,14 @@
     <p class="eyebrow">Search intelligence</p>
     <h1>Топ товаров<br><span>из выдачи Ozon</span></h1>
     <p class="hero-lead">
-      Вставь ссылку на поиск или категорию — парсер соберёт первые товары,
-      сохранит ссылки, цены и рейтинги в PostgreSQL.
+      Введи название товара или вставь ссылку на поиск / категорию — парсер
+      соберёт первые товары и сохранит карточки в PostgreSQL.
     </p>
   </div>
   <div class="search-hero-badge">
     <span class="dot dot-green"></span>
-    <span>tileGridDesktop → search_items</span>
-    <small>до 100 товаров за запуск</small>
+    <span>tileGridDesktop → карточки товаров</span>
+    <small>до 100 позиций за запуск</small>
   </div>
 </section>
 
@@ -56,7 +56,7 @@
     <div>
       <p class="eyebrow">Новый поиск</p>
       <h2>Собрать топ выдачи</h2>
-      <p class="panel-subtitle">Подойдёт ссылка вида /category/... или /search/... с параметром text.</p>
+      <p class="panel-subtitle">Введи название товара или вставь ссылку на категорию / поиск Ozon.</p>
     </div>
     <span class="panel-mark">02</span>
   </div>
@@ -67,18 +67,19 @@
 
   <form id="search-form" class="run-form" method="post" action="/searches">
     <div class="field field-wide">
-      <label for="search-url">Ссылка на выдачу</label>
+      <label for="search-url">Ссылка или название товара</label>
       <input
         id="search-url"
         name="url"
-        type="url"
+        type="text"
         required
+        minlength="2"
         autocomplete="off"
         spellcheck="false"
         value="{{ prefill_url }}"
-        placeholder="https://www.ozon.ru/category/.../?text=macbook+air+m5"
+        placeholder="macbook air m5 или https://www.ozon.ru/category/..."
       >
-      <small>Например: категория ноутбуков Apple и запрос «macbook air m5».</small>
+      <small>Название превратится в поиск Ozon. Ссылка сохранит выбранную категорию и фильтры.</small>
     </div>
 
     <div class="field source-field">
@@ -104,6 +105,14 @@
         {% endfor %}
       </select>
       <small>Первые N позиций в порядке выдачи.</small>
+    </div>
+
+    <div class="field checkbox-field parse-field">
+      <label class="checkbox-label">
+        <input type="checkbox" name="parse_products" value="on" checked>
+        <span>Разбирать карточки</span>
+      </label>
+      <small>Сохранит продавца, бренд, наличие, описание и характеристики. Дольше на N запросов.</small>
     </div>
 
     <div class="field checkbox-field" data-source-field="browser">

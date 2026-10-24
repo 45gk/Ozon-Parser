@@ -53,6 +53,7 @@
         timeout: Number(data.get("timeout") || 45),
         challenge_timeout: Number(data.get("challenge_timeout") || 120),
         limit: Number(data.get("limit") || 20),
+        parse_products: data.get("parse_products") === "on",
         headless: data.get("headless") === "on",
       };
 
@@ -98,6 +99,7 @@
           source: button.dataset.searchRerunSource || "cdp",
           cdp_url: button.dataset.searchRerunCdpUrl || null,
           limit: Number(button.dataset.searchRerunLimit || 20),
+          parse_products: button.dataset.searchRerunParseProducts !== "false",
           headless: button.dataset.searchRerunHeadless === "true",
           timeout: 45,
           challenge_timeout: 120,

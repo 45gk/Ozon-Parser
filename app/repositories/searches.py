@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import SearchRun
+from app.db.models import SearchItem, SearchRun
 
 
 class SearchRepository:
@@ -39,7 +39,7 @@ class SearchRepository:
             return None
         return self.session.scalar(
             select(SearchRun)
-            .options(selectinload(SearchRun.items))
+            .options(selectinload(SearchRun.items).selectinload(SearchItem.product))
             .where(SearchRun.id == identifier)
         )
 

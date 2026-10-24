@@ -1,6 +1,6 @@
 [project]
 name = "ozon-product-parser"
-version = "0.4.0"
+version = "0.5.0"
 description = "CLI and FastAPI web app for parsing public Ozon product pages"
 requires-python = ">=3.12"
 dependencies = [

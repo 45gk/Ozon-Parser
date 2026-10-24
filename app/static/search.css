@@ -270,3 +270,160 @@
     grid-column: span 12;
   }
 }
+
+.parse-field {
+  grid-column: span 6;
+}
+
+.search-result {
+  align-items: start;
+}
+
+.card-badge {
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.card-badge-ok {
+  border-color: rgba(53, 214, 160, 0.3);
+  background: rgba(53, 214, 160, 0.08);
+  color: var(--green);
+}
+
+.card-badge-error {
+  border-color: rgba(255, 107, 122, 0.3);
+  background: rgba(255, 107, 122, 0.08);
+  color: #ff9daa;
+}
+
+.card-badge-muted {
+  color: var(--muted-2);
+}
+
+.card-details {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 7px;
+}
+
+.card-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #aebfff;
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.card-details summary span {
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.card-details-body {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(2, 5, 12, 0.32);
+}
+
+.card-description {
+  max-height: 160px;
+  overflow: auto;
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.card-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.card-meta dt {
+  color: var(--muted-2);
+  font-size: 10px;
+}
+
+.card-meta dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.card-characteristics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 16px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.card-characteristic {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.card-characteristic span {
+  color: var(--muted-2);
+}
+
+.card-characteristic strong {
+  font-weight: 500;
+  text-align: right;
+}
+
+.card-details-error summary {
+  color: #ff9daa;
+}
+
+.card-error {
+  max-height: 120px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 107, 122, 0.2);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #ffb8c1;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 980px) {
+  .parse-field {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 720px) {
+  .parse-field {
+    grid-column: span 12;
+  }
+
+  .card-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card-characteristics {
+    grid-template-columns: 1fr;
+  }
+}

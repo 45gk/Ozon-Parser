@@ -79,7 +79,9 @@ def main() -> int:
     print(f"created {target / 'STATUS.md'}")
     print(f"created {target / 'REASONING.md'}")
     print(f"created {assets}/")
-    print("next: fill the placeholders, add evidence, then verify links and test counts")
+    print(
+        "next: fill the placeholders, add evidence, then verify links and test counts"
+    )
     return 0
 
 

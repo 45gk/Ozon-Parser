@@ -21,3 +21,12 @@ def is_product_url(url: str) -> bool:
         and is_ozon_host(parsed.hostname)
         and parsed.path.startswith("/product/")
     )
+
+
+def is_search_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.scheme in {"http", "https"}
+        and is_ozon_host(parsed.hostname)
+        and (parsed.path.startswith("/category/") or parsed.path.startswith("/search/"))
+    )

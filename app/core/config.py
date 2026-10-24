@@ -21,7 +21,7 @@ def _int_env(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Ozon Parse Lab"
-    app_version: str = "0.4.0"
+    app_version: str = "0.5.0"
     database_url: str = os.environ.get(
         "DATABASE_URL",
         "postgresql+psycopg://ozon:ozon-dev@localhost:5432/ozon",

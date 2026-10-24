@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from urllib.parse import parse_qs, urlparse
-
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -16,19 +14,12 @@ from app.search_schemas import (
     SearchStats,
 )
 from app.services.search_runner import build_search_options, run_search
+from ozon_parser.search import extract_search_query
 
 router = APIRouter(prefix="/api/searches", tags=["searches"])
 
 VALID_STATUSES = {"queued", "running", "success", "failed"}
 VALID_SOURCES = {"cdp", "browser"}
-
-
-def _query_from_url(search_url: str) -> str | None:
-    values = parse_qs(urlparse(search_url).query).get("text")
-    if not values:
-        return None
-    query = values[0].strip()
-    return query or None
 
 
 @router.post("", response_model=SearchCreated, status_code=status.HTTP_202_ACCEPTED)
@@ -43,11 +34,12 @@ def create_search(
         timeout=payload.timeout,
         challenge_timeout=payload.challenge_timeout,
         limit=payload.limit,
+        parse_products=payload.parse_products,
         headless=payload.headless,
     )
     run = SearchRepository(db).create(
         search_url=payload.url,
-        query=_query_from_url(payload.url),
+        query=extract_search_query(payload.url),
         source=payload.source,
         options=options,
     )
